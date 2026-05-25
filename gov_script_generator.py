@@ -15,7 +15,7 @@ from pathlib import Path
 # ========== Config ==========
 BASE_TOKEN = os.environ.get("FEISHU_BASE_TOKEN", "")
 TABLE_ID = os.environ.get("FEISHU_TABLE_ID", "tblsJ9n8uUyvX9tj")
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("ANTHROPIC_API_KEY", "")
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 LARK_CLI = os.environ.get("LARK_CLI_PATH", "lark-cli")
 MAX_INPUT_CHARS = 4000

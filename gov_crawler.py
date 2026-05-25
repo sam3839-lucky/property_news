@@ -364,7 +364,7 @@ def _encode_image(path: str) -> str:
 
 def _call_vision_api(image_data_uri: str, prompt: str, api_key: str = None) -> str | None:
     """Call an AI vision API (DeepSeek or Claude) to extract text from an image."""
-    key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+    key = api_key or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
         print("  [vision] no API key available")
         return None
