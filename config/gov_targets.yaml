@@ -1,0 +1,37 @@
+# 目标网站栏目配置
+sites:
+  zjj:  # 深圳市住房和建设局
+    name: "深圳住建局"
+    base_url: "https://zjj.sz.gov.cn"
+    requires_js: false  # curl 可直接访问
+    sections:
+      - name: "通知公告"
+        list_url: "https://zjj.sz.gov.cn/xxgk/tzgg/"
+        article_pattern: "/xxgk/tzgg/content/post_{id}.html"
+        tags: ["通知公告"]
+      - name: "政策法规"
+        list_url: "https://zjj.sz.gov.cn/xxgk/zcfgs/zcfg/"
+        article_pattern: "/xxgk/zcfgs/zcfg/content/post_{id}.html"
+        tags: ["政策法规"]
+      - name: "政务动态"
+        list_url: "https://zjj.sz.gov.cn/xxgk/gzdt/"
+        article_pattern: "/xxgk/gzdt/content/post_{id}.html"
+        tags: ["房地产市场", "其他"]
+      - name: "数据统计"
+        list_url: "https://zjj.sz.gov.cn/xxgk/tjsj/"
+        article_pattern: "/xxgk/tjsj/content/post_{id}.html"
+        tags: ["房地产市场"]
+
+  pnr:  # 深圳市规划和自然资源局
+    name: "深圳规自局"
+    base_url: "https://pnr.sz.gov.cn"
+    requires_js: true  # JS challenge/WAF, 需 Playwright
+    sections:
+      - name: "通知公告"
+        list_url: "https://pnr.sz.gov.cn/xxgk/gggs/"
+        article_pattern: null  # 待 Playwright 访问后确认
+        tags: ["土地出让", "通知公告"]
+      - name: "土地出让"
+        list_url: "https://pnr.sz.gov.cn/xxgk/tdcr/"
+        article_pattern: null
+        tags: ["土地出让"]

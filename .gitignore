@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots (large, generated)
+screenshots/
+
+# PDFs (generated)
+pdfs/
+
+# Database (runtime state, not code)
+gov_cache.db
+
+# Logs
+logs/
