@@ -14,8 +14,8 @@ from pathlib import Path
 import db
 
 # ========== Config ==========
-BASE_TOKEN = "ZD8DbhVSvaftAJs5VhYcZG6Zn65"
-TABLE_ID = "tblsJ9n8uUyvX9tj"
+BASE_TOKEN = os.environ.get("FEISHU_BASE_TOKEN", "")
+TABLE_ID = os.environ.get("FEISHU_TABLE_ID", "tblsJ9n8uUyvX9tj")
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 5  # seconds, doubles each retry
 

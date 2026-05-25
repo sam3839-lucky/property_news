@@ -49,8 +49,19 @@ def _ensure_dirs():
 
 
 def _load_config():
-    with open(CONFIG_PATH) as f:
-        return yaml.safe_load(f)
+    if not CONFIG_PATH.exists():
+        print(f"ERROR: config file not found: {CONFIG_PATH}")
+        sys.exit(1)
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = yaml.safe_load(f)
+        if not cfg or "sites" not in cfg:
+            print(f"ERROR: config file missing 'sites' key: {CONFIG_PATH}")
+            sys.exit(1)
+        return cfg
+    except yaml.YAMLError as e:
+        print(f"ERROR: invalid YAML in config: {e}")
+        sys.exit(1)
 
 
 def _launch_browser():
@@ -338,11 +349,21 @@ def _detect_structure_change(conn, site: str, section: str, html: str, item_coun
 
 # ========== AI vision fallback (placeholder) ==========
 
-def _ai_vision_extract(screenshot_path: str) -> list[dict]:
+def _ai_vision_extract_body(screenshot_path: str) -> str:
     """
-    AI vision fallback. Placeholder for Phase 3 integration.
-    Will pass screenshot to AI model, get structured article list back.
-    Returns list of {"title": ..., "url": ..., "date_published": ...}
+    AI vision fallback for detail page body extraction.
+    Placeholder for Phase 3 — will pass detail-page screenshot to AI
+    and return extracted body text. Returns empty string on failure.
+    """
+    # TODO: Integrate with Claude Vision / DeepSeek Vision in Phase 3
+    return ""
+
+
+def _ai_vision_extract_list(screenshot_path: str) -> list[dict]:
+    """
+    AI vision fallback for list page extraction.
+    Placeholder for Phase 3 — will pass list-page screenshot to AI
+    and return structured article list. Returns [] on failure.
     """
     # TODO: Integrate with Claude Vision / DeepSeek Vision in Phase 3
     return []
@@ -365,6 +386,13 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
         # Navigate to list page
         page.goto(list_url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(2000)  # Let JS finish rendering
+
+        # Check anti-bot (JS challenge wall, e.g. pnr)
+        if _check_anti_bot(page):
+            stats["errors"] += 1
+            db.log_run(conn, site_key, section_name, "antibot",
+                       error="JS challenge wall detected — page body is empty or script-only")
+            return stats
 
         # Check CAPTCHA
         if _check_captcha(page):
@@ -410,18 +438,16 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                     is_pdf = 0
                     pdf_path = None
 
-                # If structure changed and no PDF text, try AI vision on detail page
+                # If structure changed and HTML extraction produced no body text,
+                # try AI vision on the detail page screenshot as fallback.
                 ai_fallback = 0
-                if structure_changed and not body_text:
-                    full_p, body_p = _take_screenshots(page, art["url"], art["title"], site_key)
-                    fallback_articles = _ai_vision_extract(full_p or "")
-                    if fallback_articles:
+                full_p, body_p = _take_screenshots(page, art["url"], art["title"], site_key)
+
+                if structure_changed and not body_text and full_p:
+                    vision_text = _ai_vision_extract_body(full_p)
+                    if vision_text:
                         ai_fallback = 1
-                        # Use the first fallback result
-                        body_text = fallback_articles[0].get("title", "")
-                else:
-                    # Normal screenshot
-                    full_p, body_p = _take_screenshots(page, art["url"], art["title"], site_key)
+                        body_text = vision_text
 
                 # Determine tags
                 tags = ",".join(section_cfg.get("tags", [section_name]))
