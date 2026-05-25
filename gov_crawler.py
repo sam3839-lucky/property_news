@@ -347,25 +347,93 @@ def _detect_structure_change(conn, site: str, section: str, html: str, item_coun
     return signals >= 2 and total_signals >= 3
 
 
-# ========== AI vision fallback (placeholder) ==========
+# ========== AI vision fallback ==========
+
+def _encode_image(path: str) -> str:
+    """Read image file and return base64 data URI."""
+    import base64
+    p = Path(path)
+    if not p.exists():
+        return ""
+    data = p.read_bytes()
+    ext = p.suffix.lower().replace(".", "")
+    mime = "png" if ext == "png" else "jpeg"
+    b64 = base64.b64encode(data).decode("ascii")
+    return f"data:image/{mime};base64,{b64}"
+
+
+def _call_vision_api(image_data_uri: str, prompt: str, api_key: str = None) -> str | None:
+    """Call an AI vision API (DeepSeek or Claude) to extract text from an image."""
+    key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+    if not key:
+        print("  [vision] no API key available")
+        return None
+
+    # Try DeepSeek-compatible endpoint first (supports vision)
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_data_uri}},
+                {"type": "text", "text": prompt},
+            ],
+        }],
+        "temperature": 0.3,
+        "max_tokens": 1000,
+    }
+
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "https://api.deepseek.com/chat/completions",
+             "-H", "Content-Type: application/json",
+             "-H", f"Authorization: Bearer {key}",
+             "-d", json.dumps(payload, ensure_ascii=False),
+             "--connect-timeout", "30", "--max-time", "90"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0 and result.stdout:
+            data = json.loads(result.stdout)
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content:
+                return content.strip()
+    except Exception as e:
+        print(f"  [vision] API error: {e}")
+
+    return None
+
 
 def _ai_vision_extract_body(screenshot_path: str) -> str:
-    """
-    AI vision fallback for detail page body extraction.
-    Placeholder for Phase 3 — will pass detail-page screenshot to AI
-    and return extracted body text. Returns empty string on failure.
-    """
-    # TODO: Integrate with Claude Vision / DeepSeek Vision in Phase 3
-    return ""
+    """Extract body text from a detail-page screenshot via AI vision."""
+    b64 = _encode_image(screenshot_path)
+    if not b64:
+        return ""
+    prompt = "请从这张截图中提取网页正文的所有文字内容。只输出正文文本，不要加任何说明。"
+    return _call_vision_api(b64, prompt) or ""
 
 
 def _ai_vision_extract_list(screenshot_path: str) -> list[dict]:
-    """
-    AI vision fallback for list page extraction.
-    Placeholder for Phase 3 — will pass list-page screenshot to AI
-    and return structured article list. Returns [] on failure.
-    """
-    # TODO: Integrate with Claude Vision / DeepSeek Vision in Phase 3
+    """Extract article list from a list-page screenshot via AI vision."""
+    b64 = _encode_image(screenshot_path)
+    if not b64:
+        return []
+    prompt = (
+        "这张截图是一个政府网站的栏目列表页。请从中提取所有公告条目的信息，"
+        "以JSON数组格式输出：[{\"title\":\"公告标题\",\"url\":\"公告链接\",\"date_published\":\"日期\"}]。"
+        "只输出JSON数组，不要加任何说明。"
+    )
+    text = _call_vision_api(b64, prompt)
+    if not text:
+        return []
+    # Parse JSON from AI response
+    try:
+        # Find JSON array in response
+        start = text.find("[")
+        end = text.rfind("]") + 1
+        if start >= 0 and end > start:
+            return json.loads(text[start:end])
+    except (json.JSONDecodeError, ValueError):
+        pass
     return []
 
 
