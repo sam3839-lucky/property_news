@@ -64,10 +64,11 @@ def upload_screenshot(file_path: str) -> str | None:
         return None
 
     try:
+        p = Path(file_path)
         result = subprocess.run(
-            [LARK_CLI, "drive", "+upload", "--file", file_path],
+            [LARK_CLI, "drive", "+upload", "--file", p.name],
             capture_output=True, text=True, timeout=60,
-            cwd=str(Path(file_path).parent),
+            cwd=str(p.parent),
         )
         if result.returncode != 0:
             print(f"  [upload] failed: {result.stderr[:200]}")
