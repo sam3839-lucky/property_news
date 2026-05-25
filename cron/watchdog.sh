@@ -19,8 +19,10 @@ conn.close()
 
 if [ "$HAS_HEARTBEAT" != "yes" ]; then
     echo "[WATCHDOG] No heartbeat today — crawler may have failed to run"
-    # Send Feishu alert (Phase 2 integration)
-    # lark-cli im send --chat-id <CHAT_ID> --text "gov_crawler 今日未执行"
+    # Send Feishu alert
+    if [ -n "$FEISHU_CHAT_ID" ]; then
+        lark-cli im send --chat-id "$FEISHU_CHAT_ID" --text "⚠️ gov_crawler 今日未执行——可能崩溃或被反爬拦截，请检查日志。" 2>/dev/null
+    fi
     exit 1
 fi
 

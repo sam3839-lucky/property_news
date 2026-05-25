@@ -579,6 +579,19 @@ def _extract_date_from_page(html: str) -> str | None:
     return None
 
 
+def _cleanup_old_assets(days: int = 30):
+    """Delete screenshots and PDFs older than N days."""
+    import time as _time
+    cutoff = _time.time() - days * 86400
+    for d in [SCREENSHOTS_FULL_DIR, SCREENSHOTS_BODY_DIR, PDFS_DIR]:
+        if not d.is_dir():
+            continue
+        for f in d.iterdir():
+            if f.is_file() and f.stat().st_mtime < cutoff:
+                f.unlink()
+                print(f"  [cleanup] deleted {f.name}")
+
+
 def main():
     _ensure_dirs()
     db.init_db()
@@ -586,6 +599,7 @@ def main():
     config = _load_config()
 
     _kill_orphaned_chromium()
+    _cleanup_old_assets(days=30)
 
     total_found = 0
     total_new = 0
