@@ -369,9 +369,9 @@ def _call_vision_api(image_data_uri: str, prompt: str, api_key: str = None) -> s
         print("  [vision] no API key available")
         return None
 
-    # Try DeepSeek-compatible endpoint first (supports vision)
+    model = os.environ.get("DEEPSEEK_VISION_MODEL", os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     payload = {
-        "model": "deepseek-chat",
+        "model": model,
         "messages": [{
             "role": "user",
             "content": [
