@@ -629,16 +629,9 @@ def main():
                            ",".join(sites_checked))
         db.cleanup_old(conn, days=30)
 
-        # Sync staged records to Feishu Base
-        import feishu_writer
-        if total_new > 0:
-            print(f"\nSyncing {total_new} new records to Feishu...")
-            sync_stats = feishu_writer.sync_all_pending(conn)
-            print(f"Sync: {sync_stats['synced']} synced, {sync_stats['failed']} failed")
-
-        # Send heartbeat notification
+        # 发送飞书心跳通知
         sites_str = ",".join(sites_checked)
-        feishu_writer.send_notification(total_found, total_new, total_errors, sites_str)
+        _send_notification(total_found, total_new, total_errors, sites_str)
         print(f"Done. Found {total_found}, new {total_new}, errors {total_errors}")
 
     finally:
@@ -663,6 +656,21 @@ def _send_feishu_alert(msg: str):
         )
     except Exception as e:
         print(f"[ALERT FAILED] {msg}: {e}")
+
+
+def _send_notification(found: int, new: int, errors: int, sites: str):
+    """飞书心跳通知（替代 feishu_writer.send_notification）。"""
+    from datetime import datetime
+    emoji = "✅" if errors == 0 else "⚠️"
+    msg = f"{emoji} 住建局监控 {datetime.now().strftime('%H:%M')}\n扫描 {sites}\n新增 {new}/{found} 条\n错误 {errors} 条"
+    try:
+        import subprocess as sp
+        sp.run(
+            ["lark-cli", "im", "send", "--text", msg],
+            capture_output=True, timeout=15,
+        )
+    except Exception as e:
+        print(f"  [notify] failed: {e}")
 
 
 if __name__ == "__main__":
