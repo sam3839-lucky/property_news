@@ -502,10 +502,9 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                 # PNR 需要更长渲染时间（JS challenge + 正文加载）
                 wait_ms = 3000 if site_key == 'pnr' else 1500
                 page.wait_for_timeout(wait_ms)
-                # 详情页也可能触发 anti-bot，重试一次
-                if _check_anti_bot(page) and site_key == 'pnr':
-                    page.wait_for_timeout(random.randint(5000, 10000))
-                    page.goto(art["url"], wait_until="domcontentloaded", timeout=30000)
+                # PNR WAF 追踪列表→详情导航，首次加载常返回空 body。reload 一次
+                if site_key == 'pnr':
+                    page.reload(wait_until="domcontentloaded", timeout=30000)
                     page.wait_for_timeout(3000)
                 _random_delay(3, 8)
 
