@@ -218,6 +218,12 @@ def _extract_article_body(html: str, url: str) -> str:
         text = body.get_text(separator="\n", strip=True)
         # Remove short lines (nav, footer)
         lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 20]
+        # Strip header clutter: 重复的页面标题、发布日期、来源等元信息行
+        while lines and (
+            re.match(r"^(深圳市|日期|来源|发布|时间|字号|视力保护)","".join(lines[:1])) or
+            any(lines[:1] == lines[i:i+1] for i in range(1, min(3, len(lines))))
+        ):
+            lines.pop(0)
         return "\n".join(lines)[:4000]
 
     return ""
