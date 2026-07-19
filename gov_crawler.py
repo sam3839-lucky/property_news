@@ -67,19 +67,26 @@ def _load_config():
 def _launch_browser():
     global _BROWSER, _CONTEXT
     p = sync_playwright().start()
-    _BROWSER = p.chromium.launch(
-        headless=True,
+
+    # 持久化 Chrome profile：cookie/localStorage 跨运行保留，累积"真人浏览"特征
+    user_data_dir = PROJECT_DIR / ".chrome_profile"
+    user_data_dir.mkdir(exist_ok=True)
+
+    headless = os.environ.get("CRAWLER_HEADLESS", "0") == "1"
+
+    _CONTEXT = p.chromium.launch_persistent_context(
+        user_data_dir=str(user_data_dir),
+        headless=headless,
         args=[
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
             "--no-sandbox",
         ],
-    )
-    _CONTEXT = _BROWSER.new_context(
         user_agent=random.choice(USER_AGENTS),
         viewport={"width": 1440, "height": 900},
         locale="zh-CN",
     )
+    _BROWSER = _CONTEXT.browser
     return p
 
 
@@ -457,10 +464,16 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
 
         # Check anti-bot (JS challenge wall, e.g. pnr)
         if _check_anti_bot(page):
-            stats["errors"] += 1
-            db.log_run(conn, site_key, section_name, "antibot",
-                       error="JS challenge wall detected — page body is empty or script-only")
-            return stats
+            # 等待 JS challenge 完成（真人浏览器会自然等待），重试一次
+            print(f"  [antibot] {site_key}/{section_name} JS challenge detected, waiting & retrying...")
+            page.wait_for_timeout(random.randint(5000, 10000))
+            page.goto(list_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(3000)
+            if _check_anti_bot(page):
+                stats["errors"] += 1
+                db.log_run(conn, site_key, section_name, "antibot",
+                           error="JS challenge wall detected (retry failed)")
+                return stats
 
         # Check CAPTCHA
         if _check_captcha(page):
@@ -486,7 +499,14 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
 
                 # Fetch article detail
                 page.goto(art["url"], wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(1500)
+                # PNR 需要更长渲染时间（JS challenge + 正文加载）
+                wait_ms = 3000 if site_key == 'pnr' else 1500
+                page.wait_for_timeout(wait_ms)
+                # 详情页也可能触发 anti-bot，重试一次
+                if _check_anti_bot(page) and site_key == 'pnr':
+                    page.wait_for_timeout(random.randint(5000, 10000))
+                    page.goto(art["url"], wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
                 _random_delay(3, 8)
 
                 article_html = page.content()
@@ -636,9 +656,7 @@ def main():
 
     finally:
         if _CONTEXT:
-            _CONTEXT.close()
-        if _BROWSER:
-            _BROWSER.close()
+            _CONTEXT.close()  # persistent context 自动关闭 browser
         conn.commit()
         conn.close()
         _kill_orphaned_chromium()
