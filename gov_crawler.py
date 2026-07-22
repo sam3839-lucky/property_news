@@ -560,23 +560,17 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                         body_text = html_text
 
                 # 从详情页提取完整标题（列表页标题可能被截断为...）
-                try:
-                    full_title = page.evaluate("""(prefix) => {
-                        const h = document.querySelector('h1') || document.querySelector('.title') || document.querySelector('[class*=title]');
-                        if (h) return h.innerText.trim();
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let best = '';
-                        let node;
-                        while (node = walker.nextNode()) {
-                            const t = node.textContent.trim();
-                            if (t.startsWith(prefix) && t.length > best.length) best = t;
-                        }
-                        return best || '';
-                    }""", art["title"][:20])
-                    if full_title and len(full_title) > len(art["title"]):
-                        art["title"] = full_title
-                except Exception as e:
-                    print(f"  [title-extract] failed: {e}")
+                if art["title"].endswith("..."):
+                    soup = BeautifulSoup(article_html, "lxml")
+                    # 找包含列表标题前缀的最长文本
+                    prefix = art["title"][:20].rstrip(".")
+                    body = soup.find("body")
+                    if body:
+                        for text in body.stripped_strings:
+                            t = text.strip()
+                            if t.startswith(prefix) and len(t) > len(art["title"]):
+                                art["title"] = t
+                                break
 
                 # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
