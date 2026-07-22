@@ -562,15 +562,26 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                 # 从详情页提取完整标题（列表页标题可能被截断为...）
                 if art["title"].endswith("..."):
                     soup = BeautifulSoup(article_html, "lxml")
-                    # 找包含列表标题前缀的最长文本
                     prefix = art["title"][:20].rstrip(".")
                     body = soup.find("body")
+                    found = None
                     if body:
                         for text in body.stripped_strings:
                             t = text.strip()
                             if t.startswith(prefix) and len(t) > len(art["title"]):
-                                art["title"] = t
+                                found = t
                                 break
+                    if found:
+                        art["title"] = found
+                    else:
+                        # 尝试按标题完整开头匹配（去除末尾 ...）
+                        clean_prefix = art["title"].rstrip(".")[:30]
+                        if body:
+                            for text in body.stripped_strings:
+                                t = text.strip()
+                                if t.startswith(clean_prefix) and len(t) > len(art["title"]):
+                                    art["title"] = t
+                                    break
 
                 # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
