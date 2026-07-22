@@ -39,8 +39,11 @@ USER_AGENTS = [
 CAPTCHA_KEYWORDS = ["验证", "滑块", "点击验证", "人机验证", "captcha", "verification"]
 
 # ========== Playwright browser lifecycle ==========
+# 连接用户已有 Chrome（端口 9223），利用真实浏览历史和 cookies 突破反爬
 _BROWSER = None
 _CONTEXT = None
+_CDP_URL = "http://127.0.0.1:9223"
+_PW = None  # Playwright instance
 
 
 def _ensure_dirs():
@@ -65,29 +68,10 @@ def _load_config():
 
 
 def _launch_browser():
-    global _BROWSER, _CONTEXT
-    p = sync_playwright().start()
-
-    # 持久化 Chrome profile：cookie/localStorage 跨运行保留，累积"真人浏览"特征
-    user_data_dir = PROJECT_DIR / ".chrome_profile"
-    user_data_dir.mkdir(exist_ok=True)
-
-    headless = os.environ.get("CRAWLER_HEADLESS", "0") == "1"
-
-    _CONTEXT = p.chromium.launch_persistent_context(
-        user_data_dir=str(user_data_dir),
-        headless=headless,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-dev-shm-usage",
-            "--no-sandbox",
-        ],
-        user_agent=random.choice(USER_AGENTS),
-        viewport={"width": 1440, "height": 900},
-        locale="zh-CN",
-    )
-    _BROWSER = _CONTEXT.browser
-    return p
+    global _BROWSER, _CONTEXT, _PW
+    _PW = sync_playwright().start()
+    _BROWSER = _PW.chromium.connect_over_cdp(_CDP_URL)
+    _CONTEXT = _BROWSER.contexts[0]
 
 
 def _kill_orphaned_chromium():
@@ -674,11 +658,14 @@ def main():
         print(f"Done. Found {total_found}, new {total_new}, errors {total_errors}")
 
     finally:
-        if _CONTEXT:
-            _CONTEXT.close()  # persistent context 自动关闭 browser
+        # CDP 模式不关闭浏览器（是用户的 Chrome）
+        if _PW:
+            try:
+                _PW.stop()
+            except Exception:
+                pass
         conn.commit()
         conn.close()
-        _kill_orphaned_chromium()
 
     return 0 if total_errors == 0 else 1
 
