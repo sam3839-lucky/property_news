@@ -577,8 +577,8 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                     }""", art["title"][:20])
                     if full_title and len(full_title) > len(art["title"]):
                         art["title"] = full_title
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"  [title-extract] failed: {e}")
 
                 # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
