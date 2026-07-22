@@ -538,6 +538,14 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
 
                 article_html = page.content()
 
+                # 从详情页提取完整标题（列表页标题可能截断）
+                try:
+                    page_title = page.title()
+                    if page_title and len(page_title) > len(art["title"]):
+                        art["title"] = page_title.strip()
+                except Exception:
+                    pass
+
                 # PDF detection on article page
                 pdf_links = _detect_pdf_links(article_html, base_url)
                 pdf_info = None
@@ -558,30 +566,6 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                     html_text = _extract_article_body(article_html, art["url"])
                     if html_text:
                         body_text = html_text
-
-                # 从详情页提取完整标题（列表页标题可能被截断为...）
-                if art["title"].endswith("..."):
-                    soup = BeautifulSoup(article_html, "lxml")
-                    prefix = art["title"][:20].rstrip(".")
-                    body = soup.find("body")
-                    found = None
-                    if body:
-                        for text in body.stripped_strings:
-                            t = text.strip()
-                            if t.startswith(prefix) and len(t) > len(art["title"]):
-                                found = t
-                                break
-                    if found:
-                        art["title"] = found
-                    else:
-                        # 尝试按标题完整开头匹配（去除末尾 ...）
-                        clean_prefix = art["title"].rstrip(".")[:30]
-                        if body:
-                            for text in body.stripped_strings:
-                                t = text.strip()
-                                if t.startswith(clean_prefix) and len(t) > len(art["title"]):
-                                    art["title"] = t
-                                    break
 
                 # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
