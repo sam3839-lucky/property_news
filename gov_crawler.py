@@ -211,6 +211,40 @@ def _extract_detail_title(html: str, list_title: str) -> str | None:
     return None
 
 
+def _clean_gov_text(text: str) -> str:
+    """清洗政府页面文本：去导航、元信息、分享按钮、页脚等非正文内容。"""
+    lines = [l.strip() for l in text.split("\n")]
+    cleaned = []
+
+    # 垃圾行模式
+    junk_patterns = [
+        r"^(当前位置|信息公开|政务服务|互动交流|业务主页|数据开放)",
+        r"^(来源：|日期：|发布时间：|发布日期：)",
+        r"^(字号|视力保护|无障碍|进入关怀|IPv[46])",
+        r"^(微信扫一扫|扫一扫|分享到|微博|微信|邮箱|政务应答)",
+        r"^(网站声明|隐私声明|使用帮助|站点地图|版权|关于我们)",
+        r"^【字号",
+        r"^文档附件：",
+        r"^\d+\..*\.pdf$",
+        r"^[A-Za-z0-9_]+\.pdf$",
+    ]
+    # 孤立导航词（单行仅一个词，无标点）
+    nav_words = {"首页", "信息公开", "公告公示", "大", "中", "小", "繁体版", "手机版"}
+
+    for line in lines:
+        if line in nav_words:
+            continue
+        skip = False
+        for pat in junk_patterns:
+            if re.match(pat, line):
+                skip = True
+                break
+        if not skip and len(line) >= 4:
+            cleaned.append(line)
+
+    return "\n".join(cleaned).strip()
+
+
 def _extract_article_body(html: str, url: str) -> str:
     """Extract main body text from an article detail page."""
     soup = BeautifulSoup(html, "lxml")
@@ -222,23 +256,18 @@ def _extract_article_body(html: str, url: str) -> str:
         if el:
             text = el.get_text(separator="\n", strip=True)
             if len(text) > 100:
-                # Truncate for safety (prevent AI prompt injection surface)
-                return text[:4000]
+                # 清洗页头页脚垃圾
+                text = _clean_gov_text(text)
+                if len(text) > 50:
+                    return text[:4000]
 
     # Fallback: grab the biggest text block from body
     body = soup.find("body")
     if body:
         text = body.get_text(separator="\n", strip=True)
-        # Remove short lines (nav, footer)
-        lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 20]
-        # Strip header clutter: 重复的页面标题/元信息行（但不删正文标题——正文标题通常>20字且含具体内容）
-        while lines and (
-            re.match(r"^(当前位置|来源：|日期：|发布时间：|字号|视力保护|无障碍|进入关怀|分享到)",
-                     lines[0]) or
-            (len(lines[0]) < 40 and re.match(r"^(信息公开|政务服务|互动交流|业务主页|数据开放|IPv[46])",
-                                              lines[0]))
-        ):
-            lines.pop(0)
+        text = _clean_gov_text(text)
+        # Remove very short lines
+        lines = [l for l in text.split("\n") if len(l.strip()) > 10]
         return "\n".join(lines)[:4000]
 
     return ""
