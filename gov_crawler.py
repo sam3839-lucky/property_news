@@ -187,6 +187,30 @@ def _find_date_near(element) -> str | None:
     return None
 
 
+def _extract_detail_title(html: str, list_title: str) -> str | None:
+    """从详情页提取完整标题（列表页标题常被截断为...）。"""
+    soup = BeautifulSoup(html, "lxml")
+
+    # Try <h1> or other heading first
+    for sel in ["h1", ".title", "#title", "[class*=title]", "[class*=news-title]"]:
+        el = soup.select_one(sel)
+        if el:
+            text = el.get_text(strip=True)
+            if len(text) > len(list_title) and text[:20] in list_title[:25]:
+                return text
+
+    # Fallback: find the longest text node that contains the list title prefix
+    prefix = list_title[:15]
+    body = soup.find("body")
+    if body:
+        texts = [t.strip() for t in body.stripped_strings]
+        for t in texts:
+            if t.startswith(prefix) and len(t) > len(list_title):
+                return t
+
+    return None
+
+
 def _extract_article_body(html: str, url: str) -> str:
     """Extract main body text from an article detail page."""
     soup = BeautifulSoup(html, "lxml")
@@ -534,6 +558,11 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                     html_text = _extract_article_body(article_html, art["url"])
                     if html_text:
                         body_text = html_text
+
+                # 从详情页提取完整标题（列表页标题可能被截断）
+                detail_title = _extract_detail_title(article_html, art["title"])
+                if detail_title:
+                    art["title"] = detail_title
 
                 # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
