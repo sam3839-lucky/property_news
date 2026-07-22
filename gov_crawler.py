@@ -204,7 +204,8 @@ def _extract_article_body(html: str, url: str) -> str:
     soup = BeautifulSoup(html, "lxml")
 
     # Try common gov content containers
-    for sel in ["#zoom", ".article-con", ".TRS_Editor", ".news-content", ".content", "article", ".main-content"]:
+    for sel in ["#zoom", "#content", ".article-con", ".TRS_Editor", ".news-content",
+                ".xxym", ".content", "article", ".main-content", ".container"]:
         el = soup.select_one(sel)
         if el:
             text = el.get_text(separator="\n", strip=True)
@@ -212,16 +213,18 @@ def _extract_article_body(html: str, url: str) -> str:
                 # Truncate for safety (prevent AI prompt injection surface)
                 return text[:4000]
 
-    # Fallback: grab the biggest text block
+    # Fallback: grab the biggest text block from body
     body = soup.find("body")
     if body:
         text = body.get_text(separator="\n", strip=True)
         # Remove short lines (nav, footer)
         lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 20]
-        # Strip header clutter: 重复的页面标题、发布日期、来源等元信息行
+        # Strip header clutter: 重复的页面标题/元信息行（但不删正文标题——正文标题通常>20字且含具体内容）
         while lines and (
-            re.match(r"^(深圳市|日期|来源|发布|时间|字号|视力保护)","".join(lines[:1])) or
-            any(lines[:1] == lines[i:i+1] for i in range(1, min(3, len(lines))))
+            re.match(r"^(当前位置|来源：|日期：|发布时间：|字号|视力保护|无障碍|进入关怀|分享到)",
+                     lines[0]) or
+            (len(lines[0]) < 40 and re.match(r"^(信息公开|政务服务|互动交流|业务主页|数据开放|IPv[46])",
+                                              lines[0]))
         ):
             lines.pop(0)
         return "\n".join(lines)[:4000]
@@ -508,10 +511,17 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                 # PNR 需要更长渲染时间（JS challenge + 正文加载）
                 wait_ms = 3000 if site_key == 'pnr' else 1500
                 page.wait_for_timeout(wait_ms)
-                # PNR WAF 追踪列表→详情导航，首次加载常返回空 body。reload 一次
+
+                # PNR 详情页反爬检测：首次加载常返回空 body，重试最多 3 次
                 if site_key == 'pnr':
-                    page.reload(wait_until="domcontentloaded", timeout=30000)
-                    page.wait_for_timeout(3000)
+                    for retry in range(3):
+                        if not _check_anti_bot(page):
+                            break
+                        print(f"  [antibot-detail] {site_key} 详情页反爬，重试 {retry+1}/3...")
+                        page.wait_for_timeout(5000)
+                        page.reload(wait_until="domcontentloaded", timeout=30000)
+                        page.wait_for_timeout(3000)
+
                 _random_delay(3, 8)
 
                 article_html = page.content()
