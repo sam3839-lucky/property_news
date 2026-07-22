@@ -132,8 +132,12 @@ def _check_captcha(page) -> bool:
 def _check_anti_bot(page) -> bool:
     """Check if the page is a JS challenge shell (like pnr)."""
     try:
+        body_text = page.inner_text("body").strip()
         body_html = page.inner_html("body").strip()
-        # Heuristic: empty body or purely script body = anti-bot
+        # Heuristic 1: visible text too short (real gov pages have >100 chars)
+        if len(body_text) < 80:
+            return True
+        # Heuristic 2: mostly script with minimal content
         if len(body_html) < 200 and "script" in body_html.lower():
             return True
     except Exception:
