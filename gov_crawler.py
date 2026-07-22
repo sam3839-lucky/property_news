@@ -529,12 +529,17 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
                     is_pdf = 0
                     pdf_path = None
 
-                # If structure changed and HTML extraction produced no body text,
-                # try AI vision on the detail page screenshot as fallback.
+                # PDF 文本提取失败时，回退到 HTML 正文提取
+                if not body_text:
+                    html_text = _extract_article_body(article_html, art["url"])
+                    if html_text:
+                        body_text = html_text
+
+                # If body text still empty, try AI vision on the detail page screenshot
                 ai_fallback = 0
                 full_p, body_p = _take_screenshots(page, art["url"], art["title"], site_key)
 
-                if structure_changed and not body_text and full_p:
+                if not body_text and full_p:
                     vision_text = _ai_vision_extract_body(full_p)
                     if vision_text:
                         ai_fallback = 1
