@@ -192,12 +192,13 @@ def stage_record(conn, **kwargs) -> bool:
 
     cur.execute(
         """UPDATE curation_materials SET
-            body_text=%s, is_pdf=%s, pdf_path=%s,
+            title=%s, body_text=%s, is_pdf=%s, pdf_path=%s,
             screenshot_full=%s, screenshot_body=%s,
             ai_fallback=%s, tags=%s, date_published=%s,
             source_type='gov_article', site_name=%s, updated_at=NOW()
            WHERE url_hash=%s""",
         (
+            kwargs.get("title"),
             kwargs.get("body_text"),
             bool(kwargs.get("is_pdf", False)),
             kwargs.get("pdf_path"),
