@@ -561,11 +561,9 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
 
                 # 从详情页提取完整标题（列表页标题可能被截断为...）
                 try:
-                    full_title = page.evaluate("""() => {
+                    full_title = page.evaluate("""(prefix) => {
                         const h = document.querySelector('h1') || document.querySelector('.title') || document.querySelector('[class*=title]');
                         if (h) return h.innerText.trim();
-                        // fallback: find the longest text starting with the list title prefix
-                        const prefix = arguments[0];
                         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                         let best = '';
                         let node;
