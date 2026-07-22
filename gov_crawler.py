@@ -540,11 +540,12 @@ def crawl_section(conn, page, site_cfg: dict, section_cfg: dict) -> dict:
 
                 # 从详情页提取完整标题（列表页标题可能截断）
                 try:
-                    page_title = page.title()
+                    page_title = page.title().strip()
                     if page_title and len(page_title) > len(art["title"]):
-                        art["title"] = page_title.strip()
-                except Exception:
-                    pass
+                        print(f"  [title] list={art['title'][:30]}... ({len(art['title'])}c) -> full={page_title[:30]}... ({len(page_title)}c)")
+                        art["title"] = page_title
+                except Exception as ex:
+                    print(f"  [title] err: {ex}")
 
                 # PDF detection on article page
                 pdf_links = _detect_pdf_links(article_html, base_url)
